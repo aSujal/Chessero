@@ -169,7 +169,9 @@ impl Board {
                         || (piece.color == Color::Black && row == 1)
                     {
                         let second_row = (row as i32 + direction + direction) as usize;
-                        moves.push((second_row, col))
+                        if self.squares[second_row][col].is_none() {
+                            moves.push((second_row, col))
+                        }
                     }
                 }
                 // do pawn captures
