@@ -1,14 +1,7 @@
 <script lang="ts">
-  import Counter from "$lib/components/Counter.svelte";
-
-  let team = $state(["Alice", "Bob", "Charlie"]);
+  import Board from "$lib/components/Board.svelte";
 </script>
 
 <main class="container">
-  <h3>Team Members</h3>
-  <ul>
-    {#each team as member}
-      <li>{member}</li>
-    {/each}
-  </ul>
+  <Board />
 </main>
