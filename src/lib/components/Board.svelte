@@ -48,6 +48,9 @@
     });
 
     availableSquares = moves.map(([r, c]) => ({ row: r, col: c }));
+    console.log("currentRow", row);
+    console.log("currentCol", col);
+    console.log("availableSquares", availableSquares);
   }
 
   async function handleSquareClick(index: number) {
@@ -102,7 +105,7 @@
       <!-- <span class="matrix">{getMatrixCoords(index)}</span> -->
       <!-- <span class="matrix">{index}</span> -->
       {#if availableSquares?.some((s) => s.row == row && s.col == col)}
-        <div class="available-square"></div>
+        <div class:available-square={!piece} class:capture-target={piece && piece.color != boardState?.active_color}></div>
       {/if}
       {#if piece}
         {@const colorKey = piece.color === "white" ? "w" : "b"}
@@ -195,7 +198,21 @@
     height: 30%;
     background-color: black;
     opacity: 0.2;
+    z-index: 6;
     border-radius: 50%;
+    position: absolute;
+  }
+
+  .capture-target {
+    border: 5px solid black;
+    opacity: 0.2;
+    z-index: 6;
+    border-radius: 50%;
+    position: absolute;
+    top: 0px;
+    bottom: 0px;
+    right: 0px;
+    left: 0px;
   }
 
   /* corners */
