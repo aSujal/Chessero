@@ -37,27 +37,44 @@
     return `${files[col]}${ranks[row]}`;
   }
 
-  function getAvailableSquares(index: number) {
+  async function getAvailableSquares(index: number) {
+    if (!boardState) return;
     const row = getRow(index);
     const col = getColumn(index);
-    const piece = boardState?.squares[row][col];
+    const moves: [number, number][] = await invoke("get_moves", {
+      board: boardState,
+      row: row,
+      col: col,
+    });
 
-    if (piece?.piece_type === "pawn") {
-      const direction = piece.color === "white" ? -1 : 1;
-
-      availableSquares = [
-        { row: row + direction, col: col },
-        { row: row + direction + direction, col: col },
-      ];
-    }
+    availableSquares = moves.map(([r, c]) => ({ row: r, col: c }));
   }
 
-  function handleSquareClick(index: number) {
-    const row = getRow(index);
-    const col = getColumn(index);
-    const piece = boardState?.squares[row][col];
+  async function handleSquareClick(index: number) {
+    const clickedRow = getRow(index);
+    const clickedCol = getColumn(index);
+    const clickedPiece = boardState?.squares[clickedRow][clickedCol];
 
-    if (piece) {
+    //Handle move
+    if (selectedSquareIndex !== null && availableSquares?.some((s) => s.row === clickedRow && s.col === clickedCol)) {
+      const fromRow = getRow(selectedSquareIndex);
+      const fromCol = getColumn(selectedSquareIndex);
+
+      const updatedBoard: BoardState = await invoke("make_move", {
+        board: boardState,
+        fromRow: fromRow,
+        fromCol: fromCol,
+        toRow: clickedRow,
+        toCol: clickedCol,
+      });
+
+      boardState = updatedBoard;
+      selectedSquareIndex = null;
+      availableSquares = null;
+      return;
+    }
+
+    if (clickedPiece) {
       selectedSquareIndex = index;
       getAvailableSquares(index);
     } else {
