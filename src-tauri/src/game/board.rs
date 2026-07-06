@@ -3,6 +3,8 @@
 // PartialEq allows standard == operator so i can use piece.color == Color.White
 
 use serde::{Deserialize, Serialize};
+
+use crate::game::board::PieceType::King;
 //Serialize auto generates the code that turns these into JSON objects.
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -48,6 +50,33 @@ impl Board {
         (0, -1),
         (0, 1),
     ];
+
+    const ROOK_DIRECTIONS: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+
+    const BISHOP_DIRECTIONS: [(i32, i32); 4] = [(-1, -1), (1, 1), (-1, 1), (1, -1)];
+
+    const KING_DIRECTIONS: [(i32, i32); 8] = [
+        (-1, -1),
+        (1, 1),
+        (-1, 1),
+        (1, -1),
+        (-1, 0),
+        (1, 0),
+        (0, -1),
+        (0, 1),
+    ];
+
+    const KNIGHT_OFFSETS: [(i32, i32); 8] = [
+        (2, 1),
+        (2, -1),
+        (-2, 1),
+        (-2, -1),
+        (1, 2),
+        (1, -2),
+        (-1, 2),
+        (-1, -2),
+    ];
+
     // -> return type in this case a Board
     pub fn new() -> Self {
         let mut setup = [[None; 8]; 8];
@@ -164,6 +193,7 @@ impl Board {
             None => return moves, // if not a piece return the empty vec
         };
 
+        // not your turn
         if piece.color != self.active_color {
             return moves;
         }
@@ -206,18 +236,8 @@ impl Board {
             }
 
             PieceType::Knight => {
-                let offsets = [
-                    (2, 1),
-                    (2, -1),
-                    (-2, 1),
-                    (-2, -1),
-                    (1, 2),
-                    (1, -2),
-                    (-1, 2),
-                    (-1, -2),
-                ];
                 // direction row, direction column
-                for (dr, dc) in offsets {
+                for (dr, dc) in Self::KNIGHT_OFFSETS {
                     let new_row = row as i32 + dr;
                     let new_col = col as i32 + dc;
 
@@ -238,13 +258,11 @@ impl Board {
             }
 
             PieceType::Bishop => {
-                let directions = [(-1, -1), (1, 1), (-1, 1), (1, -1)];
-                self.handle_sliding_moves(row, col, &directions, piece, &mut moves)
+                self.handle_sliding_moves(row, col, &Self::BISHOP_DIRECTIONS, piece, &mut moves)
             }
 
             PieceType::Rook => {
-                let directions = [(-1, 0), (1, 0), (0, -1), (0, 1)];
-                self.handle_sliding_moves(row, col, &directions, piece, &mut moves)
+                self.handle_sliding_moves(row, col, &Self::ROOK_DIRECTIONS, piece, &mut moves)
             }
 
             PieceType::Queen => {
@@ -252,23 +270,20 @@ impl Board {
             }
 
             PieceType::King => {
-                let directions = [
-                    (-1, -1),
-                    (1, 1),
-                    (-1, 1),
-                    (1, -1),
-                    (-1, 0),
-                    (1, 0),
-                    (0, -1),
-                    (0, 1),
-                ];
-                for (dr, dc) in directions {
+                let enemy_color = if piece.color == Color::White {Color::Black} else {Color::White};
+
+
+                for (dr, dc) in Self::KING_DIRECTIONS {
                     let next_row = row as i32 + dr;
                     let next_col = col as i32 + dc;
 
                     if next_row >= 0 && next_row < 8 && next_col >= 0 && next_col < 8 {
                         let r = next_row as usize;
                         let c = next_col as usize;
+
+                        if self.is_square_attacked(r, c, enemy_color) {
+                            continue;
+                        }
                         //check if that square is within the range of an enemy piece and if so skip
                         match self.squares[r][c] {
                             None => moves.push((r, c)),
@@ -284,6 +299,88 @@ impl Board {
         }
 
         moves
+    }
+
+    fn is_square_attacked(&self, row: usize, col: usize, enemy_color: Color) -> bool {
+        for (dr, dc) in Self::ROOK_DIRECTIONS {
+            let mut r = row as i32 + dr;
+            let mut c = col as i32 + dc;
+            //check if any pieces show up in the direction that would match an enemy rook or queen
+
+            while r >= 0 && r < 8 && c >= 0 && c < 8 {
+                if let Some(p) = self.squares[r as usize][c as usize] {
+                    if p.color == enemy_color && (p.piece_type == PieceType::Rook || p.piece_type == PieceType::Queen){
+                        return true
+                    }
+                    break; // if any other piece means the pieces behind are block so no need to check further
+                }
+                r += dr;
+                c += dc;
+            }
+        }
+
+        //Queen and Bishop check
+        for (dr, dc) in Self::BISHOP_DIRECTIONS{
+            let mut r = row as i32 + dr;
+            let mut c = col as i32 + dc;
+
+            while r >= 0 && r < 8 && c >= 0 && c < 8 {
+                if let Some(p) = self.squares[r as usize][c as usize] {
+                    if p.color == enemy_color && (p.piece_type == PieceType::Bishop || p.piece_type == PieceType::Queen){
+                        return true
+                    }
+                    break; 
+                }
+                r += dr;
+                c += dc;
+            }
+        }
+
+        //Knight check
+        for (dr, dc) in Self::KNIGHT_OFFSETS{
+            let mut r = row as i32 + dr;
+            let mut c = col as i32 + dc;
+
+            while r >= 0 && r < 8 && c >= 0 && c < 8 {
+                if let Some(p) = self.squares[r as usize][c as usize] {
+                    if p.color == enemy_color && (p.piece_type == PieceType::Knight){
+                        return true
+                    }
+                    break; 
+                }
+                r += dr;
+                c += dc;
+            }
+        }
+
+        let pawn_directions = if enemy_color == Color::White { 1 } else { -1 };
+        let rowi32 = row as i32;
+        let coli32 = col as i32;
+        let pawn_attacks = [(rowi32 + pawn_directions, coli32 + 1), (rowi32 + pawn_directions, coli32 -1)];
+        for (r, c) in pawn_attacks{
+            if r >= 0 && r < 8 && c >= 0 && c < 8{
+                if let Some(p) = self.squares[r as usize][c as usize] {
+                    if p.color == enemy_color && p.piece_type == PieceType::Pawn {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        for (dr, dc) in Self::KING_DIRECTIONS {
+            let r = row as i32 + dr;
+            let c = col as i32 + dc;
+
+            if r >= 0 && r < 8 && c >= 0 && c < 8 {
+                if let Some(p) = self.squares[r as usize][c as usize] {
+                    if p.color == enemy_color && p.piece_type == King {
+                        return true;
+                    }
+                }
+            } 
+        }
+
+        false
     }
 
     fn handle_sliding_moves(
