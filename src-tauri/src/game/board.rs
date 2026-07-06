@@ -270,8 +270,11 @@ impl Board {
             }
 
             PieceType::King => {
-                let enemy_color = if piece.color == Color::White {Color::Black} else {Color::White};
-
+                let enemy_color = if piece.color == Color::White {
+                    Color::Black
+                } else {
+                    Color::White
+                };
 
                 for (dr, dc) in Self::KING_DIRECTIONS {
                     let next_row = row as i32 + dr;
@@ -309,8 +312,10 @@ impl Board {
 
             while r >= 0 && r < 8 && c >= 0 && c < 8 {
                 if let Some(p) = self.squares[r as usize][c as usize] {
-                    if p.color == enemy_color && (p.piece_type == PieceType::Rook || p.piece_type == PieceType::Queen){
-                        return true
+                    if p.color == enemy_color
+                        && (p.piece_type == PieceType::Rook || p.piece_type == PieceType::Queen)
+                    {
+                        return true;
                     }
                     break; // if any other piece means the pieces behind are block so no need to check further
                 }
@@ -320,16 +325,18 @@ impl Board {
         }
 
         //Queen and Bishop check
-        for (dr, dc) in Self::BISHOP_DIRECTIONS{
+        for (dr, dc) in Self::BISHOP_DIRECTIONS {
             let mut r = row as i32 + dr;
             let mut c = col as i32 + dc;
 
             while r >= 0 && r < 8 && c >= 0 && c < 8 {
                 if let Some(p) = self.squares[r as usize][c as usize] {
-                    if p.color == enemy_color && (p.piece_type == PieceType::Bishop || p.piece_type == PieceType::Queen){
-                        return true
+                    if p.color == enemy_color
+                        && (p.piece_type == PieceType::Bishop || p.piece_type == PieceType::Queen)
+                    {
+                        return true;
                     }
-                    break; 
+                    break;
                 }
                 r += dr;
                 c += dc;
@@ -337,28 +344,29 @@ impl Board {
         }
 
         //Knight check
-        for (dr, dc) in Self::KNIGHT_OFFSETS{
-            let mut r = row as i32 + dr;
-            let mut c = col as i32 + dc;
+        for (dr, dc) in Self::KNIGHT_OFFSETS {
+            let r = row as i32 + dr;
+            let c = col as i32 + dc;
 
-            while r >= 0 && r < 8 && c >= 0 && c < 8 {
+            if r >= 0 && r < 8 && c >= 0 && c < 8 {
                 if let Some(p) = self.squares[r as usize][c as usize] {
-                    if p.color == enemy_color && (p.piece_type == PieceType::Knight){
-                        return true
+                    if p.color == enemy_color && (p.piece_type == PieceType::Knight) {
+                        return true;
                     }
-                    break; 
+                    break;
                 }
-                r += dr;
-                c += dc;
             }
         }
 
         let pawn_directions = if enemy_color == Color::White { 1 } else { -1 };
         let rowi32 = row as i32;
         let coli32 = col as i32;
-        let pawn_attacks = [(rowi32 + pawn_directions, coli32 + 1), (rowi32 + pawn_directions, coli32 -1)];
-        for (r, c) in pawn_attacks{
-            if r >= 0 && r < 8 && c >= 0 && c < 8{
+        let pawn_attacks = [
+            (rowi32 + pawn_directions, coli32 + 1),
+            (rowi32 + pawn_directions, coli32 - 1),
+        ];
+        for (r, c) in pawn_attacks {
+            if r >= 0 && r < 8 && c >= 0 && c < 8 {
                 if let Some(p) = self.squares[r as usize][c as usize] {
                     if p.color == enemy_color && p.piece_type == PieceType::Pawn {
                         return true;
@@ -373,11 +381,11 @@ impl Board {
 
             if r >= 0 && r < 8 && c >= 0 && c < 8 {
                 if let Some(p) = self.squares[r as usize][c as usize] {
-                    if p.color == enemy_color && p.piece_type == King {
+                    if p.color == enemy_color && p.piece_type == PieceType::King {
                         return true;
                     }
                 }
-            } 
+            }
         }
 
         false
