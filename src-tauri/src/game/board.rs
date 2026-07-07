@@ -32,10 +32,14 @@ pub struct Piece {
 }
 
 // Array in rust: [type; size] so a two dimensional grid would be [[...; size]; size]
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Board {
     pub squares: [[Option<Piece>; 8]; 8],
     pub active_color: Color,
+    pub white_king_side: bool,
+    pub white_queen_side: bool,
+    pub black_king_side: bool,
+    pub black_queen_side: bool,
 }
 
 // use impl to add functions to specific struct
@@ -179,11 +183,67 @@ impl Board {
         return Board {
             squares: setup,
             active_color: Color::White,
+
+            black_king_side: true,
+            white_king_side: true,
+            black_queen_side: true,
+            white_queen_side: true,
         };
     }
 
+    fn find_king(&self, color: Color) -> Option<(usize, usize)> {
+        for r in 0..8 {
+            for c in 0..8 {
+                if let Some(p) = self.squares[r][c] {
+                    if p.piece_type == PieceType::King && p.color == color {
+                        return Some((r, c));
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    fn is_in_check(&self, color: Color) -> bool {
+        let (kr, kc) = self.find_king(color).unwrap();
+        let enemy_color = if color == Color::White {
+            Color::Black
+        } else {
+            Color::White
+        };
+        return self.is_square_attacked(kr, kc, enemy_color);
+    }
+
+    pub fn get_legal_moves(&self, row: usize, col: usize) -> Vec<(usize, usize)>{
+        let mut legal_moves = Vec::new();
+
+        let pseudo_moves = self.get_pseudo_moves(row, col);
+
+        let piece_color = match self.squares[row][col] {
+            Some(p) => p.color,
+            None => return legal_moves
+        };
+
+        for (to_row, to_col) in pseudo_moves {
+            let mut temp_board = self.clone();
+
+            // Move the piece on the temp board
+            let piece = temp_board.squares[row][col].take();
+
+            temp_board.squares[to_row][to_col] = piece;
+
+            // if still not in check then its a legal move
+            if !temp_board.is_in_check(piece_color) {
+                legal_moves.push((to_row, to_col))
+            }
+        }
+
+        legal_moves
+    }
+
+    // moves that are mechanically allowed
     // &self means it reads data from the current instance of the board the & means we are just borrowing it to read it and not manipulate it, i think...
-    pub fn get_valid_moves(&self, row: usize, col: usize) -> Vec<(usize, usize)> {
+    pub fn get_pseudo_moves(&self, row: usize, col: usize) -> Vec<(usize, usize)> {
         let mut moves = Vec::new();
 
         // match is like switch
@@ -432,7 +492,7 @@ impl Board {
         to_col: usize,
     ) -> bool {
         // double check that the desination is a valid move
-        let valid_moves = self.get_valid_moves(from_row, from_col);
+        let valid_moves = self.get_pseudo_moves(from_row, from_col);
         if !valid_moves.contains(&(to_row, to_col)) {
             return false;
         }

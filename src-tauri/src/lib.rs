@@ -17,7 +17,7 @@ fn get_initial_board() -> Board {
 
 #[tauri::command]
 fn get_moves(board: Board, row: usize, col: usize) -> Vec<(usize, usize)> {
-    board.get_valid_moves(row, col)
+    board.get_legal_moves(row, col)
 }
 
 #[tauri::command]
