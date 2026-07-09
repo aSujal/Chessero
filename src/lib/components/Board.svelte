@@ -24,17 +24,40 @@
     const col = getColumn(index);
     return (row + col) % 2 == 1;
   }
+
   function getMatrixCoords(index: number): string {
     const row = Math.floor(index / 8);
     const col = index % 8;
     return `[${row}][${col}]`;
   }
 
-  function getChessNotation(index: number): string {
-    const row = getRow(index);
-    const col = getColumn(index);
-
+  function coordsToNotation(row: number, col: number): string {
     return `${files[col]}${ranks[row]}`;
+  }
+
+  function formatMove(moveItem: UndoRecord): string {
+    const { mv, moved_piece, captured_piece } = moveItem;
+    const [_, fromCol] = mv.from;
+    const [toRow, toCol] = mv.to;
+
+    const pieceType = moved_piece.piece_type;
+
+    let piecePrefix = "";
+    if (pieceType !== "pawn") {
+      piecePrefix = pieceType === "knight" ? "N" : pieceType.charAt(0).toUpperCase();
+    }
+
+    const isCapture = captured_piece !== null;
+    const toNotation = coordsToNotation(toRow, toCol);
+
+    if (pieceType === "pawn") {
+      if (isCapture) {
+        return `${files[fromCol]}x${toNotation}`;
+      }
+      return toNotation;
+    }
+
+    return `${piecePrefix}${isCapture ? "x" : ""}${toNotation}`;
   }
 
   async function getAvailableSquares(index: number) {
@@ -48,9 +71,6 @@
     });
 
     availableSquares = moves.map(([r, c]) => ({ row: r, col: c }));
-    console.log("currentRow", row);
-    console.log("currentCol", col);
-    console.log("availableSquares", availableSquares);
   }
 
   async function handleSquareClick(index: number) {
@@ -72,6 +92,7 @@
       });
 
       boardState = updatedBoard;
+      console.log(updatedBoard);
       selectedSquareIndex = null;
       availableSquares = null;
       return;
@@ -87,57 +108,133 @@
   }
 </script>
 
-<div class="chessboard">
-  {#each squares as index}
-    {@const row = getRow(index)}
-    {@const col = getColumn(index)}
-    {@const isSelected = selectedSquareIndex === index}
-    {@const piece = boardState ? boardState.squares[row][col] : null}
-    <button
-      class="square {isDarkSquare(index) ? 'dark' : 'light'}"
-      class:selected={isSelected}
-      onclick={() => handleSquareClick(index)}
-      aria-label="{files[col]}{ranks[row]}"
-    >
-      <!-- <span>
+<div class="game-container">
+  <div class="chessboard">
+    {#each squares as index}
+      {@const row = getRow(index)}
+      {@const col = getColumn(index)}
+      {@const isSelected = selectedSquareIndex === index}
+      {@const piece = boardState ? boardState.squares[row][col] : null}
+      <button
+        class="square {isDarkSquare(index) ? 'dark' : 'light'}"
+        class:selected={isSelected}
+        onclick={() => handleSquareClick(index)}
+        aria-label="{files[col]}{ranks[row]}"
+      >
+        <!-- <span>
         {getChessNotation(index)}
-      </span> -->
-      <!-- <span class="matrix">{getMatrixCoords(index)}</span> -->
-      <!-- <span class="matrix">{index}</span> -->
-      {#if availableSquares?.some((s) => s.row == row && s.col == col)}
-        <div class:available-square={!piece} class:capture-target={piece && piece.color != boardState?.active_color}></div>
-      {/if}
-      {#if piece}
-        {@const colorKey = piece.color === "white" ? "w" : "b"}
-        {@const pieceKey = piece.piece_type === "knight" ? "n" : piece.piece_type.charAt(0)}
-        <img src="/pieces/{colorKey}{pieceKey}.png" alt="{colorKey}{pieceKey}" class="piece-img" />
-      {/if}
-      {#if getColumn(index) == 0}
-        <span id="ranks" class:coordinate-dark={isDarkSquare(index)} class:coordinate-light={!isDarkSquare(index)}
-          >{ranks[getRow(index)]}</span
-        >
-      {/if}
-      {#if getRow(index) == 7}
-        <span id="files" class:coordinate-dark={isDarkSquare(index)} class:coordinate-light={!isDarkSquare(index)}
-          >{files[getColumn(index)]}</span
-        >
-      {/if}
-    </button>
-  {/each}
+        </span> -->
+        <!-- <span class="matrix">{getMatrixCoords(index)}</span> -->
+        <!-- <span class="matrix">{index}</span> -->
+        {#if availableSquares?.some((s) => s.row == row && s.col == col)}
+          <div class:available-square={!piece} class:capture-target={piece && piece.color != boardState?.active_color}></div>
+        {/if}
+        {#if piece}
+          {@const colorKey = piece.color === "white" ? "w" : "b"}
+          {@const pieceKey = piece.piece_type === "knight" ? "n" : piece.piece_type.charAt(0)}
+          <img src="/pieces/{colorKey}{pieceKey}.png" alt="{colorKey}{pieceKey}" class="piece-img" />
+        {/if}
+        {#if getColumn(index) == 0}
+          <span id="ranks" class:coordinate-dark={isDarkSquare(index)} class:coordinate-light={!isDarkSquare(index)}
+            >{ranks[getRow(index)]}</span
+          >
+        {/if}
+        {#if getRow(index) == 7}
+          <span id="files" class:coordinate-dark={isDarkSquare(index)} class:coordinate-light={!isDarkSquare(index)}
+            >{files[getColumn(index)]}</span
+          >
+        {/if}
+      </button>
+    {/each}
+  </div>
+
+  <div class="sidebar">
+    <div class="controls">
+      <button>Undo</button>
+    </div>
+    <div class="history-container">
+      <h3>White - Black</h3>
+
+      <div class="history-list">
+        {#if boardState?.move_history}
+          {#each boardState.move_history as rec, i}
+            {@const move = rec}
+            {@const isEven = i % 2 === 0}
+            <div class:history-move-white={isEven} class:history-move-black={!isEven}>{move ? formatMove(move) : ""}</div>
+          {/each}
+        {/if}
+      </div>
+    </div>
+  </div>
 </div>
 
 <style>
+  * {
+    box-sizing: border-box;
+  }
+
   :root {
     --board-border-radius: 5px;
   }
+
+  .game-container {
+    display: flex;
+    gap: 20px;
+  }
+
+  .sidebar,
+  .chessboard {
+    width: 75vmin;
+    height: 75vmin;
+    max-width: 800px;
+    max-height: 800px;
+  }
+
   .chessboard {
     display: grid;
     grid-template-columns: repeat(8, 1fr);
     grid-template-rows: repeat(8, 1fr);
-    width: 75vmin;
-    height: 75vmin;
-    max-width: 650px;
-    max-height: 650px;
+  }
+
+  .sidebar {
+    background-color: #0000002e;
+    border-radius: var(--board-border-radius);
+    padding: 10px;
+
+    display: flex;
+    flex-direction: column;
+  }
+
+  .history-container {
+    flex: 1;
+
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .history-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    overflow-y: auto;
+    padding-right: 5px;
+  }
+
+  .history-move-white,
+  .history-move-black {
+    padding: 2px;
+    border-radius: 5px;
+  }
+
+  .history-move-black {
+    background-color: black;
+    color: white;
+  }
+
+  .history-move-white {
+    background-color: white;
+    color: black;
   }
 
   #files {
@@ -152,10 +249,11 @@
     left: 5px;
   }
 
-  .matrix {
+  /* .matrix {
     font-size: 0.7rem;
     color: rgba(0, 0, 0, 0.45);
   }
+  */
 
   .piece-img {
     width: 100%;

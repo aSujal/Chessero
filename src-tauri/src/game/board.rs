@@ -4,7 +4,6 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::game::board::PieceType::King;
 //Serialize auto generates the code that turns these into JSON objects.
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -31,15 +30,25 @@ pub struct Piece {
     pub color: Color,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Move {
+    pub from: (usize, usize),
+    pub to: (usize, usize),
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct UndoRecord {
+    pub mv: Move,
+    pub moved_piece: Piece,
+    pub captured_piece: Option<Piece>,
+}
+
 // Array in rust: [type; size] so a two dimensional grid would be [[...; size]; size]
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Board {
     pub squares: [[Option<Piece>; 8]; 8],
     pub active_color: Color,
-    pub white_king_side: bool,
-    pub white_queen_side: bool,
-    pub black_king_side: bool,
-    pub black_queen_side: bool,
+    pub move_history: Vec<UndoRecord>,
 }
 
 // use impl to add functions to specific struct
@@ -183,11 +192,7 @@ impl Board {
         return Board {
             squares: setup,
             active_color: Color::White,
-
-            black_king_side: true,
-            white_king_side: true,
-            black_queen_side: true,
-            white_queen_side: true,
+            move_history: Vec::new(),
         };
     }
 
@@ -214,14 +219,14 @@ impl Board {
         return self.is_square_attacked(kr, kc, enemy_color);
     }
 
-    pub fn get_legal_moves(&self, row: usize, col: usize) -> Vec<(usize, usize)>{
+    pub fn get_legal_moves(&self, row: usize, col: usize) -> Vec<(usize, usize)> {
         let mut legal_moves = Vec::new();
 
         let pseudo_moves = self.get_pseudo_moves(row, col);
 
         let piece_color = match self.squares[row][col] {
             Some(p) => p.color,
-            None => return legal_moves
+            None => return legal_moves,
         };
 
         for (to_row, to_col) in pseudo_moves {
@@ -491,20 +496,59 @@ impl Board {
         to_row: usize,
         to_col: usize,
     ) -> bool {
-        // double check that the desination is a valid move
+        // double check that the destination is a valid move
+
         let valid_moves = self.get_pseudo_moves(from_row, from_col);
         if !valid_moves.contains(&(to_row, to_col)) {
             return false;
         }
 
+        let moved_piece = self.squares[from_row][from_col].unwrap();
+        let captured_piece = self.squares[to_row][to_col];
+
+        let mv = Move {
+            from: (from_row, from_col),
+            to: (to_row, to_col),
+        };
+
+        self.move_history.push(UndoRecord {
+            mv,
+            moved_piece,
+            captured_piece,
+        });
+
+        // remove the piece from current position
         let piece = self.squares[from_row][from_col].take();
 
+        // move it to the new position (could also mean it overwrites another piece, which means it captured the piece)
         self.squares[to_row][to_col] = piece;
 
-        self.active_color = if self.active_color == Color::White {
-            Color::Black
-        } else {
-            Color::White
+        self.active_color = match self.active_color {
+            Color::White => Color::Black,
+            Color::Black => Color::White,
+        };
+
+        true
+    }
+
+    pub fn undo_move(&mut self) -> bool {
+        let record = match self.move_history.pop() {
+            Some(r) => r,
+            None => return false,
+        };
+
+        let (from_r, from_c) = record.mv.from;
+        let (to_r, to_c) = record.mv.to;
+
+        let moved_piece = self.squares[to_r][to_c].take();
+        self.squares[from_r][from_c] = moved_piece;
+
+        // place the captured piece back
+        self.squares[to_r][to_c] = record.captured_piece;
+
+        self.active_color = match self.active_color {
+            Color::White => Color::Black,
+            Color::Black => Color::White,
         };
 
         true

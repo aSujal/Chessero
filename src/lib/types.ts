@@ -6,7 +6,20 @@ type Piece = {
     color: Color,
 }
 
+type Move = {
+    from: [number, number],
+    to: [number, number],
+}
+
+type UndoRecord = {
+    mv: Move,
+    moved_piece: Piece,
+    captured_piece: Piece | null
+}
+
 type BoardState = {
     squares: (Piece | null)[][];
     active_color: Color
+
+    move_history: Array<UndoRecord>
 }
