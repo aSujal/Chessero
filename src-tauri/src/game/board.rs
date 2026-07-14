@@ -2,58 +2,22 @@
 // Clone and Copy tells rust that the data is tiny so just copy the value instead of using pointers and stuff...
 // PartialEq allows standard == operator so i can use piece.color == Color.White
 
+use super::{CastlingRights, Color, Piece, PieceType, UndoRecord};
 use serde::{Deserialize, Serialize};
 
 //Serialize auto generates the code that turns these into JSON objects.
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Color {
-    White,
-    Black,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum PieceType {
-    Pawn,
-    Bishop,
-    Knight,
-    Rook,
-    Queen,
-    King,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct Piece {
-    pub piece_type: PieceType,
-    pub color: Color,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Move {
-    pub from: (usize, usize),
-    pub to: (usize, usize),
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct UndoRecord {
-    pub mv: Move,
-    pub moved_piece: Piece,
-    pub captured_piece: Option<Piece>,
-}
-
 // Array in rust: [type; size] so a two dimensional grid would be [[...; size]; size]
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Board {
     pub squares: [[Option<Piece>; 8]; 8],
     pub active_color: Color,
     pub move_history: Vec<UndoRecord>,
+    pub castling: CastlingRights,
 }
 
 // use impl to add functions to specific struct
 impl Board {
-    const QUEEN_DIRECTIONS: [(i32, i32); 8] = [
+    pub const QUEEN_DIRECTIONS: [(i32, i32); 8] = [
         (-1, -1),
         (1, 1),
         (-1, 1),
@@ -64,11 +28,11 @@ impl Board {
         (0, 1),
     ];
 
-    const ROOK_DIRECTIONS: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+    pub const ROOK_DIRECTIONS: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
 
-    const BISHOP_DIRECTIONS: [(i32, i32); 4] = [(-1, -1), (1, 1), (-1, 1), (1, -1)];
+    pub const BISHOP_DIRECTIONS: [(i32, i32); 4] = [(-1, -1), (1, 1), (-1, 1), (1, -1)];
 
-    const KING_DIRECTIONS: [(i32, i32); 8] = [
+    pub const KING_DIRECTIONS: [(i32, i32); 8] = [
         (-1, -1),
         (1, 1),
         (-1, 1),
@@ -79,7 +43,7 @@ impl Board {
         (0, 1),
     ];
 
-    const KNIGHT_OFFSETS: [(i32, i32); 8] = [
+    pub const KNIGHT_OFFSETS: [(i32, i32); 8] = [
         (2, 1),
         (2, -1),
         (-2, 1),
@@ -193,364 +157,12 @@ impl Board {
             squares: setup,
             active_color: Color::White,
             move_history: Vec::new(),
+            castling: CastlingRights {
+                white_kingside: true,
+                white_queenside: true,
+                black_kingside: true,
+                black_queenside: true,
+            },
         };
-    }
-
-    fn find_king(&self, color: Color) -> Option<(usize, usize)> {
-        for r in 0..8 {
-            for c in 0..8 {
-                if let Some(p) = self.squares[r][c] {
-                    if p.piece_type == PieceType::King && p.color == color {
-                        return Some((r, c));
-                    }
-                }
-            }
-        }
-        None
-    }
-
-    fn is_in_check(&self, color: Color) -> bool {
-        let (kr, kc) = self.find_king(color).unwrap();
-        let enemy_color = if color == Color::White {
-            Color::Black
-        } else {
-            Color::White
-        };
-        return self.is_square_attacked(kr, kc, enemy_color);
-    }
-
-    pub fn get_legal_moves(&self, row: usize, col: usize) -> Vec<(usize, usize)> {
-        let mut legal_moves = Vec::new();
-
-        let pseudo_moves = self.get_pseudo_moves(row, col);
-
-        let piece_color = match self.squares[row][col] {
-            Some(p) => p.color,
-            None => return legal_moves,
-        };
-
-        for (to_row, to_col) in pseudo_moves {
-            let mut temp_board = self.clone();
-
-            // Move the piece on the temp board
-            let piece = temp_board.squares[row][col].take();
-
-            temp_board.squares[to_row][to_col] = piece;
-
-            // if still not in check then its a legal move
-            if !temp_board.is_in_check(piece_color) {
-                legal_moves.push((to_row, to_col))
-            }
-        }
-
-        legal_moves
-    }
-
-    // moves that are mechanically allowed
-    // &self means it reads data from the current instance of the board the & means we are just borrowing it to read it and not manipulate it, i think...
-    pub fn get_pseudo_moves(&self, row: usize, col: usize) -> Vec<(usize, usize)> {
-        let mut moves = Vec::new();
-
-        // match is like switch
-        // check if there is a piece at this index
-        let piece = match self.squares[row][col] {
-            Some(p) => p,         // assign p to piece
-            None => return moves, // if not a piece return the empty vec
-        };
-
-        // not your turn
-        if piece.color != self.active_color {
-            return moves;
-        }
-
-        match piece.piece_type {
-            PieceType::Pawn => {
-                let rowi32 = row as i32; //using i32 to perform math with negetive values for directions as usize is only positive numbers.
-                let coli32 = col as i32;
-
-                let direction = if piece.color == Color::White { -1 } else { 1 };
-                let next_row = (rowi32 + direction) as usize;
-                if next_row < 8 && self.squares[next_row][col].is_none() {
-                    moves.push((next_row, col));
-
-                    if (piece.color == Color::White && row == 6)
-                        || (piece.color == Color::Black && row == 1)
-                    {
-                        let second_row = (rowi32 + direction + direction) as usize;
-                        if self.squares[second_row][col].is_none() {
-                            moves.push((second_row, col))
-                        }
-                    }
-                }
-                // do pawn captures
-
-                let capture_cols = [coli32 - 1, coli32 + 1];
-                if next_row < 8 {
-                    for target_col in capture_cols {
-                        if target_col >= 0 && target_col < 8 {
-                            let c = target_col as usize; // convert back to usize so i can use it as an index to find it in array
-
-                            if let Some(target_piece) = self.squares[next_row][c] {
-                                if target_piece.color != piece.color {
-                                    moves.push((next_row, c));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            PieceType::Knight => {
-                // direction row, direction column
-                for (dr, dc) in Self::KNIGHT_OFFSETS {
-                    let new_row = row as i32 + dr;
-                    let new_col = col as i32 + dc;
-
-                    if new_row >= 0 && new_row < 8 && new_col >= 0 && new_col < 8 {
-                        let r = new_row as usize;
-                        let c = new_col as usize;
-
-                        match self.squares[r][c] {
-                            None => moves.push((r, c)),
-                            Some(target_piece) => {
-                                if target_piece.color != piece.color {
-                                    moves.push((r, c));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            PieceType::Bishop => {
-                self.handle_sliding_moves(row, col, &Self::BISHOP_DIRECTIONS, piece, &mut moves)
-            }
-
-            PieceType::Rook => {
-                self.handle_sliding_moves(row, col, &Self::ROOK_DIRECTIONS, piece, &mut moves)
-            }
-
-            PieceType::Queen => {
-                self.handle_sliding_moves(row, col, &Self::QUEEN_DIRECTIONS, piece, &mut moves)
-            }
-
-            PieceType::King => {
-                let enemy_color = if piece.color == Color::White {
-                    Color::Black
-                } else {
-                    Color::White
-                };
-
-                for (dr, dc) in Self::KING_DIRECTIONS {
-                    let next_row = row as i32 + dr;
-                    let next_col = col as i32 + dc;
-
-                    if next_row >= 0 && next_row < 8 && next_col >= 0 && next_col < 8 {
-                        let r = next_row as usize;
-                        let c = next_col as usize;
-
-                        if self.is_square_attacked(r, c, enemy_color) {
-                            continue;
-                        }
-                        //check if that square is within the range of an enemy piece and if so skip
-                        match self.squares[r][c] {
-                            None => moves.push((r, c)),
-                            Some(target_piece) => {
-                                if target_piece.color != piece.color {
-                                    moves.push((r, c));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        moves
-    }
-
-    fn is_square_attacked(&self, row: usize, col: usize, enemy_color: Color) -> bool {
-        for (dr, dc) in Self::ROOK_DIRECTIONS {
-            let mut r = row as i32 + dr;
-            let mut c = col as i32 + dc;
-            //check if any pieces show up in the direction that would match an enemy rook or queen
-
-            while r >= 0 && r < 8 && c >= 0 && c < 8 {
-                if let Some(p) = self.squares[r as usize][c as usize] {
-                    if p.color == enemy_color
-                        && (p.piece_type == PieceType::Rook || p.piece_type == PieceType::Queen)
-                    {
-                        return true;
-                    }
-                    break; // if any other piece means the pieces behind are block so no need to check further
-                }
-                r += dr;
-                c += dc;
-            }
-        }
-
-        //Queen and Bishop check
-        for (dr, dc) in Self::BISHOP_DIRECTIONS {
-            let mut r = row as i32 + dr;
-            let mut c = col as i32 + dc;
-
-            while r >= 0 && r < 8 && c >= 0 && c < 8 {
-                if let Some(p) = self.squares[r as usize][c as usize] {
-                    if p.color == enemy_color
-                        && (p.piece_type == PieceType::Bishop || p.piece_type == PieceType::Queen)
-                    {
-                        return true;
-                    }
-                    break;
-                }
-                r += dr;
-                c += dc;
-            }
-        }
-
-        //Knight check
-        for (dr, dc) in Self::KNIGHT_OFFSETS {
-            let r = row as i32 + dr;
-            let c = col as i32 + dc;
-
-            if r >= 0 && r < 8 && c >= 0 && c < 8 {
-                if let Some(p) = self.squares[r as usize][c as usize] {
-                    if p.color == enemy_color && (p.piece_type == PieceType::Knight) {
-                        return true;
-                    }
-                    break;
-                }
-            }
-        }
-
-        let pawn_directions = if enemy_color == Color::White { 1 } else { -1 };
-        let rowi32 = row as i32;
-        let coli32 = col as i32;
-        let pawn_attacks = [
-            (rowi32 + pawn_directions, coli32 + 1),
-            (rowi32 + pawn_directions, coli32 - 1),
-        ];
-        for (r, c) in pawn_attacks {
-            if r >= 0 && r < 8 && c >= 0 && c < 8 {
-                if let Some(p) = self.squares[r as usize][c as usize] {
-                    if p.color == enemy_color && p.piece_type == PieceType::Pawn {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        for (dr, dc) in Self::KING_DIRECTIONS {
-            let r = row as i32 + dr;
-            let c = col as i32 + dc;
-
-            if r >= 0 && r < 8 && c >= 0 && c < 8 {
-                if let Some(p) = self.squares[r as usize][c as usize] {
-                    if p.color == enemy_color && p.piece_type == PieceType::King {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        false
-    }
-
-    fn handle_sliding_moves(
-        &self,
-        row: usize,
-        col: usize,
-        directions: &[(i32, i32)],
-        piece: Piece,
-        moves: &mut Vec<(usize, usize)>,
-    ) {
-        for (dr, dc) in directions {
-            let mut current_row = row as i32 + dr;
-            let mut current_col = col as i32 + dc;
-
-            while current_row >= 0 && current_row < 8 && current_col >= 0 && current_col < 8 {
-                let r = current_row as usize;
-                let c = current_col as usize;
-
-                match self.squares[r][c] {
-                    None => {
-                        moves.push((r, c));
-                        current_row += dr;
-                        current_col += dc;
-                    }
-                    Some(target_piece) => {
-                        if target_piece.color != piece.color {
-                            moves.push((r, c));
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn make_move(
-        &mut self,
-        from_row: usize,
-        from_col: usize,
-        to_row: usize,
-        to_col: usize,
-    ) -> bool {
-        // double check that the destination is a valid move
-
-        let valid_moves = self.get_pseudo_moves(from_row, from_col);
-        if !valid_moves.contains(&(to_row, to_col)) {
-            return false;
-        }
-
-        let moved_piece = self.squares[from_row][from_col].unwrap();
-        let captured_piece = self.squares[to_row][to_col];
-
-        let mv = Move {
-            from: (from_row, from_col),
-            to: (to_row, to_col),
-        };
-
-        self.move_history.push(UndoRecord {
-            mv,
-            moved_piece,
-            captured_piece,
-        });
-
-        // remove the piece from current position
-        let piece = self.squares[from_row][from_col].take();
-
-        // move it to the new position (could also mean it overwrites another piece, which means it captured the piece)
-        self.squares[to_row][to_col] = piece;
-
-        self.active_color = match self.active_color {
-            Color::White => Color::Black,
-            Color::Black => Color::White,
-        };
-
-        true
-    }
-
-    pub fn undo_move(&mut self) -> bool {
-        let record = match self.move_history.pop() {
-            Some(r) => r,
-            None => return false,
-        };
-
-        let (from_r, from_c) = record.mv.from;
-        let (to_r, to_c) = record.mv.to;
-
-        let moved_piece = self.squares[to_r][to_c].take();
-        self.squares[from_r][from_c] = moved_piece;
-
-        // place the captured piece back
-        self.squares[to_r][to_c] = record.captured_piece;
-
-        self.active_color = match self.active_color {
-            Color::White => Color::Black,
-            Color::Black => Color::White,
-        };
-
-        true
     }
 }

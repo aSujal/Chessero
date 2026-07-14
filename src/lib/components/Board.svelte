@@ -106,6 +106,20 @@
       availableSquares = null;
     }
   }
+
+  async function handleUndo(index?: number) {
+    if (!boardState) return;
+    console.log("boardState", boardState?.move_history?.length);
+    console.log("target_index", index);
+    const updatedBoard: BoardState = await invoke("undo_move", {
+      board: boardState,
+      target_index: index,
+    });
+
+    boardState = updatedBoard;
+    selectedSquareIndex = null;
+    availableSquares = null;
+  }
 </script>
 
 <div class="game-container">
@@ -114,10 +128,19 @@
       {@const row = getRow(index)}
       {@const col = getColumn(index)}
       {@const isSelected = selectedSquareIndex === index}
+      {@const lastMovedSquareFrom = boardState?.move_history?.length
+        ? boardState.move_history[boardState.move_history.length - 1].mv.from
+        : null}
+      {@const lastMovedSquareTo = boardState?.move_history?.length
+        ? boardState.move_history[boardState.move_history.length - 1].mv.to
+        : null}
+      {@const isLastMovedSquareFrom = lastMovedSquareFrom && lastMovedSquareFrom[0] === row && lastMovedSquareFrom[1] === col}
+      {@const isLastMovedSquareTo = lastMovedSquareTo && lastMovedSquareTo[0] === row && lastMovedSquareTo[1] === col}
+
       {@const piece = boardState ? boardState.squares[row][col] : null}
       <button
         class="square {isDarkSquare(index) ? 'dark' : 'light'}"
-        class:selected={isSelected}
+        class:highlighted={isSelected || isLastMovedSquareFrom || isLastMovedSquareTo}
         onclick={() => handleSquareClick(index)}
         aria-label="{files[col]}{ranks[row]}"
       >
@@ -150,7 +173,7 @@
 
   <div class="sidebar">
     <div class="controls">
-      <button>Undo</button>
+      <button onclick={() => handleUndo()}>Undo</button>
     </div>
     <div class="history-container">
       <h3>White - Black</h3>
@@ -160,7 +183,9 @@
           {#each boardState.move_history as rec, i}
             {@const move = rec}
             {@const isEven = i % 2 === 0}
-            <div class:history-move-white={isEven} class:history-move-black={!isEven}>{move ? formatMove(move) : ""}</div>
+            <button onclick={() => handleUndo(i)} class:history-move-white={isEven} class:history-move-black={!isEven}
+              >{move ? formatMove(move) : ""}</button
+            >
           {/each}
         {/if}
       </div>
@@ -281,7 +306,7 @@
     margin: 0;
   }
   /* highlight selected square */
-  .square.selected::before {
+  .square.highlighted::before {
     background-color: #ffff33;
     z-index: 1;
     opacity: 0.5;

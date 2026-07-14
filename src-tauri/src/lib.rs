@@ -21,6 +21,20 @@ fn get_moves(board: Board, row: usize, col: usize) -> Vec<(usize, usize)> {
 }
 
 #[tauri::command]
+fn undo_move(mut board: Board, target_index: Option<usize>) -> Board {
+    match target_index {
+        Some(idx) => {
+            board.undo_to_index(idx);
+        }
+        None => {
+            board.undo_move();
+        }
+    }
+
+    board
+}
+
+#[tauri::command]
 fn make_move(
     mut board: Board,
     from_row: usize,
@@ -41,7 +55,8 @@ pub fn run() {
             greet,
             get_initial_board,
             get_moves,
-            make_move
+            make_move,
+            undo_move
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
