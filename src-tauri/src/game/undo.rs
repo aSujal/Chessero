@@ -16,10 +16,16 @@ impl Board {
 
         self.squares[from_r][from_c] = Some(record.moved_piece);
 
+        //this needs to be before placing back the captured piece as i could delete it if its not an en passant
+        self.squares[to_r][to_c].take();
+
         // place the captured piece back
-        self.squares[to_r][to_c] = record.captured_piece;
+        if let Some((cr, cc)) = record.captured_square {
+            self.squares[cr][cc] = record.captured_piece;
+        }
 
         self.castling = record.castling_rights;
+        self.en_passant_pawn = record.en_passant_pawn;
 
         if record.moved_piece.piece_type == PieceType::King && from_c == 4 {
             self.undo_castling(&record);
@@ -43,11 +49,6 @@ impl Board {
             let rook = self.squares[from_r][5].take();
 
             self.squares[from_r][7] = rook;
-
-            // match record.moved_piece.color {
-            //     Color::White => self.castling.white_kingside = true,
-            //     Color::Black => self.castling.black_kingside = true,
-            // }
         }
 
         //Check queenside
@@ -55,11 +56,6 @@ impl Board {
             let rook = self.squares[from_r][3].take();
 
             self.squares[from_r][0] = rook;
-
-            // match record.moved_piece.color {
-            //     Color::White => self.castling.white_queenside = true,
-            //     Color::Black => self.castling.black_queenside = true,
-            // }
         }
     }
 

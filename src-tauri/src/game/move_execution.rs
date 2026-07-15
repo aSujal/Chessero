@@ -15,30 +15,41 @@ impl Board {
             return false;
         }
 
+        self.make_move_unchecked(from_row, from_col, to_row, to_col);
+
+        true
+    }
+
+    pub fn make_move_unchecked(
+        &mut self,
+        from_row: usize,
+        from_col: usize,
+        to_row: usize,
+        to_col: usize,
+    ) {
         let moved_piece = self.squares[from_row][from_col].unwrap();
-        let captured_piece = self.squares[to_row][to_col];
+        let capture_square = self.get_capture_square(to_row, to_col, &moved_piece);
 
-        let mv = Move {
-            from: (from_row, from_col),
-            to: (to_row, to_col),
-        };
-
-        self.move_history.push(UndoRecord {
-            mv,
+        self.save_undo_record(
+            from_row,
+            from_col,
+            to_row,
+            to_col,
             moved_piece,
-            captured_piece,
-            castling_rights: self.castling,
-        });
+            capture_square,
+        );
+
+        self.handle_capture(capture_square);
+
+        //checks if a pawn moved 2 squares and clears previous en passant pawn
+        self.update_en_passant(from_row, to_row, to_col, moved_piece);
 
         //remove the piece from current position
         let mut piece = self.squares[from_row][from_col].take();
 
         //pawn promotion
-        if let Some(ref mut p) = piece {
-            if p.piece_type == PieceType::Pawn && (to_row == 0 || to_row == 7) {
-                p.piece_type = PieceType::Queen; //later let the user choose what they want instead of always a queen.
-            }
-        }
+        //later let the user choose what they want instead of always a queen.
+        self.promote_pawn(&mut piece, to_row, PieceType::Queen);
 
         //checks if it can still castle in the future by checking if the king or the rook moved
         if self.castling.white_kingside
@@ -59,8 +70,89 @@ impl Board {
             Color::White => Color::Black,
             Color::Black => Color::White,
         };
+    }
 
-        true
+    fn get_capture_square(
+        &self,
+        to_row: usize,
+        to_col: usize,
+        moved_piece: &Piece,
+    ) -> Option<(usize, usize)> {
+        let direction = if moved_piece.color == Color::White {
+            -1
+        } else {
+            1
+        };
+
+        //en passant
+        if let Some((ep_row, ep_col)) = self.en_passant_pawn {
+            let capture_row = ep_row as i32 + direction;
+            if moved_piece.piece_type == PieceType::Pawn
+                && to_row == capture_row as usize
+                && to_col == ep_col
+            {
+                return Some((ep_row, ep_col));
+            }
+        }
+
+        //normal capture
+        if self.squares[to_row][to_col].is_some() {
+            return Some((to_row, to_col));
+        }
+
+        None
+    }
+
+    fn save_undo_record(
+        &mut self,
+        from_row: usize,
+        from_col: usize,
+        to_col: usize,
+        to_row: usize,
+        moved_piece: Piece,
+        capture_square: Option<(usize, usize)>,
+    ) {
+        let captured_piece = match capture_square {
+            Some((row, col)) => self.squares[row][col],
+            None => None,
+        };
+
+        self.move_history.push(UndoRecord {
+            mv: Move {
+                from: (from_row, from_col),
+                to: (to_row, to_col),
+            },
+            moved_piece,
+            captured_piece,
+            captured_square: capture_square,
+            castling_rights: self.castling,
+            en_passant_pawn: self.en_passant_pawn,
+        });
+    }
+
+    fn handle_capture(&mut self, capture_square: Option<(usize, usize)>) {
+        if let Some((row, col)) = capture_square {
+            self.squares[row][col] = None;
+        }
+    }
+
+    fn update_en_passant(&mut self, from_row: usize, to_row: usize, to_col: usize, piece: Piece) {
+        //clear previous en_passant_pawn
+        self.en_passant_pawn = None;
+
+        if piece.piece_type == PieceType::Pawn
+            && (from_row == 1 && to_row == 3 || from_row == 6 && to_row == 4)
+        {
+            self.en_passant_pawn = Some((to_row, to_col));
+        }
+    }
+
+    fn promote_pawn(&self, piece: &mut Option<Piece>, to_row: usize, piece_type: PieceType) {
+        if let Some(p) = piece {
+            if p.piece_type == PieceType::Pawn && (to_row == 0 || to_row == 7) {
+                p.piece_type = piece_type;
+            }
+        }
     }
 
     fn update_castling_rights(&mut self, from_col: usize, moved_piece: &Piece) {

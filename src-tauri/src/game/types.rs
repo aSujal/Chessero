@@ -21,5 +21,7 @@ pub struct UndoRecord {
     pub mv: Move,
     pub moved_piece: Piece,
     pub captured_piece: Option<Piece>,
+    pub captured_square: Option<(usize, usize)>, // Need this for en passant
     pub castling_rights: CastlingRights,
+    pub en_passant_pawn: Option<(usize, usize)>,
 }

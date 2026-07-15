@@ -16,9 +16,8 @@ impl Board {
             let mut temp_board = self.clone();
 
             // Move the piece on the temp board
-            let piece = temp_board.squares[row][col].take();
-
-            temp_board.squares[to_row][to_col] = piece;
+            // temp_board.make_move(row, col, to_row, to_col); cant use make_move because it checks for legal moves which will cause it to infinitely loop.
+            temp_board.make_move_unchecked(row, col, to_row, to_col);
 
             // if still not in check then its a legal move
             if !temp_board.is_in_check(piece_color) {
@@ -53,6 +52,13 @@ impl Board {
 
                 let direction = if piece.color == Color::White { -1 } else { 1 };
                 let next_row = (rowi32 + direction) as usize;
+
+                if let Some((ep_row, ep_col)) = self.en_passant_pawn {
+                    if ep_row == row && ep_col.abs_diff(col) == 1 {
+                        moves.push(((ep_row as i32 + direction) as usize, ep_col));
+                    }
+                }
+
                 if next_row < 8 && self.squares[next_row][col].is_none() {
                     moves.push((next_row, col));
 
@@ -65,8 +71,8 @@ impl Board {
                         }
                     }
                 }
-                // do pawn captures
 
+                // do pawn captures
                 let capture_cols = [coli32 - 1, coli32 + 1];
                 if next_row < 8 {
                     for target_col in capture_cols {

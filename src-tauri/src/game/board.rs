@@ -13,6 +13,7 @@ pub struct Board {
     pub active_color: Color,
     pub move_history: Vec<UndoRecord>,
     pub castling: CastlingRights,
+    pub en_passant_pawn: Option<(usize, usize)>, // storing any pawn that moved 2 square
 }
 
 // use impl to add functions to specific struct
@@ -163,6 +164,7 @@ impl Board {
                 black_kingside: true,
                 black_queenside: true,
             },
+            en_passant_pawn: None,
         };
     }
 }
