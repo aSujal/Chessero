@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::Piece;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct CastlingRights {
     pub white_kingside: bool,
     pub white_queenside: bool,
@@ -21,4 +21,5 @@ pub struct UndoRecord {
     pub mv: Move,
     pub moved_piece: Piece,
     pub captured_piece: Option<Piece>,
+    pub castling_rights: CastlingRights,
 }
