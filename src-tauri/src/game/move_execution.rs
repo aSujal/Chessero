@@ -33,8 +33,8 @@ impl Board {
         self.save_undo_record(
             from_row,
             from_col,
-            to_row,
             to_col,
+            to_row,
             moved_piece,
             capture_square,
         );
