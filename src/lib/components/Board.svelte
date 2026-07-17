@@ -47,6 +47,14 @@
       piecePrefix = pieceType === "knight" ? "N" : pieceType.charAt(0).toUpperCase();
     }
 
+    if (pieceType == "king" && fromCol == 4) {
+      if (toCol == 6) {
+        return "O-O";
+      }
+      if (toCol == 2) {
+        return "O-O-O";
+      }
+    }
     const isCapture = captured_piece !== null;
     const toNotation = coordsToNotation(toRow, toCol);
 
@@ -180,12 +188,18 @@
 
       <div class="history-list">
         {#if boardState?.move_history}
-          {#each boardState.move_history as rec, i}
-            {@const move = rec}
-            {@const isEven = i % 2 === 0}
-            <button onclick={() => handleUndo(i)} class:history-move-white={isEven} class:history-move-black={!isEven}
-              >{move ? formatMove(move) : ""}</button
-            >
+          {#each Array(Math.ceil(boardState.move_history.length / 2)) as _, i}
+            <div class="history-row">
+              <div class="move-number">
+                {i + 1}.
+              </div>
+              <button class="history-move">
+                {formatMove(boardState.move_history[i * 2])}
+              </button>
+              {#if boardState.move_history[i * 2 + 1]}
+                <button class={`history-move`}>{formatMove(boardState.move_history[i * 2 + 1])}</button>
+              {/if}
+            </div>
           {/each}
         {/if}
       </div>
@@ -224,7 +238,6 @@
   .sidebar {
     background-color: #0000002e;
     border-radius: var(--board-border-radius);
-    padding: 10px;
 
     display: flex;
     flex-direction: column;
@@ -232,34 +245,37 @@
 
   .history-container {
     flex: 1;
-
     display: flex;
     flex-direction: column;
     min-height: 0;
   }
 
   .history-list {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    overflow-y: auto;
     padding-right: 5px;
+    overflow-y: auto;
   }
 
-  .history-move-white,
-  .history-move-black {
-    padding: 2px;
-    border-radius: 5px;
+  .history-row {
+    display: grid;
+    grid-template-columns: 20px 1fr 1fr;
+    align-items: center;
+    padding-inline: 20px;
   }
 
-  .history-move-black {
-    background-color: black;
+  .history-row:nth-child(even) {
+    background: #0000001e;
+  }
+  .history-row:nth-child(odd) {
+    background: #0000004e;
+  }
+
+  .history-move {
+    background: transparent;
     color: white;
-  }
+    border: none;
 
-  .history-move-white {
-    background-color: white;
-    color: black;
+    padding: 8px;
+    text-align: left;
   }
 
   #files {
