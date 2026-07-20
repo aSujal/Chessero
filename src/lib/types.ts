@@ -1,4 +1,5 @@
 type PieceType = "pawn" | "bishop" | "knight" | "rook" | "queen" | "king";
+type GameState = "ongoing" | "check" | "checkmate" | "statemate" | "drawfiftymove" | "drawinsufficientmaterial" | "drawrepetition";
 type Color = "white" | "black";
 
 type Piece = {
@@ -14,7 +15,8 @@ type Move = {
 type UndoRecord = {
     mv: Move,
     moved_piece: Piece,
-    captured_piece: Piece | null
+    captured_piece: Piece | null,
+    game_state: GameState
 }
 
 type BoardState = {

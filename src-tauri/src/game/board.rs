@@ -2,7 +2,7 @@
 // Clone and Copy tells rust that the data is tiny so just copy the value instead of using pointers and stuff...
 // PartialEq allows standard == operator so i can use piece.color == Color.White
 
-use super::{CastlingRights, Color, Piece, PieceType, UndoRecord};
+use super::{CastlingRights, Color, GameState, Piece, PieceType, UndoRecord};
 use serde::{Deserialize, Serialize};
 
 //Serialize auto generates the code that turns these into JSON objects.
@@ -14,6 +14,7 @@ pub struct Board {
     pub move_history: Vec<UndoRecord>,
     pub castling: CastlingRights,
     pub en_passant_pawn: Option<(usize, usize)>, // storing any pawn that moved 2 square
+    pub game_state: GameState,
 }
 
 // use impl to add functions to specific struct
@@ -165,6 +166,7 @@ impl Board {
                 black_queenside: true,
             },
             en_passant_pawn: None,
+            game_state: GameState::Ongoing,
         };
     }
 }

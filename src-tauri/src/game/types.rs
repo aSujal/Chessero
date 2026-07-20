@@ -10,6 +10,18 @@ pub struct CastlingRights {
     pub black_queenside: bool,
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum GameState {
+    Ongoing,
+    Check,
+    Checkmate,
+    Stalemate,
+    DrawFiftyMove,
+    DrawInsufficientMaterial,
+    DrawRepetiton,
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Move {
     pub from: (usize, usize),
@@ -24,4 +36,5 @@ pub struct UndoRecord {
     pub captured_square: Option<(usize, usize)>, // Need this for en passant
     pub castling_rights: CastlingRights,
     pub en_passant_pawn: Option<(usize, usize)>,
+    pub game_state: GameState,
 }

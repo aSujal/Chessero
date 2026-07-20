@@ -25,6 +25,28 @@ impl Board {
         return self.is_square_attacked(kr, kc, enemy_color);
     }
 
+    fn has_legal_move(&self, color: Color) -> bool {
+        for r in 0..8 {
+            for c in 0..8 {
+                if let Some(p) = self.squares[r][c] {
+                    if p.color == color && !self.get_legal_moves(r, c).is_empty() {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
+    }
+
+    pub fn is_checkmate(&self, color: Color) -> bool {
+        self.is_in_check(color) && !self.has_legal_move(color)
+    }
+
+    pub fn is_stalemate(&self, color: Color) -> bool {
+        !self.is_in_check(color) && !self.has_legal_move(color)
+    }
+
     pub fn is_square_attacked(&self, row: usize, col: usize, enemy_color: Color) -> bool {
         for (dr, dc) in Self::ROOK_DIRECTIONS {
             let mut r = row as i32 + dr;

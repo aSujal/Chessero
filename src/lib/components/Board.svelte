@@ -41,31 +41,43 @@
     const [toRow, toCol] = mv.to;
 
     const pieceType = moved_piece.piece_type;
+    let notation = "";
 
     let piecePrefix = "";
     if (pieceType !== "pawn") {
       piecePrefix = pieceType === "knight" ? "N" : pieceType.charAt(0).toUpperCase();
     }
 
+    //castling
     if (pieceType == "king" && fromCol == 4) {
       if (toCol == 6) {
-        return "O-O";
-      }
-      if (toCol == 2) {
-        return "O-O-O";
+        notation = "O-O";
+      } else if (toCol == 2) {
+        notation = "O-O-O";
       }
     }
-    const isCapture = captured_piece !== null;
-    const toNotation = coordsToNotation(toRow, toCol);
+    if (notation === "") {
+      const isCapture = captured_piece !== null;
+      const toNotation = coordsToNotation(toRow, toCol);
 
-    if (pieceType === "pawn") {
-      if (isCapture) {
-        return `${files[fromCol]}x${toNotation}`;
+      if (pieceType === "pawn") {
+        if (isCapture) {
+          notation = `${files[fromCol]}x${toNotation}`;
+        } else {
+          notation = toNotation;
+        }
+      } else {
+        notation = `${piecePrefix}${isCapture ? "x" : ""}${toNotation}`;
       }
-      return toNotation;
     }
 
-    return `${piecePrefix}${isCapture ? "x" : ""}${toNotation}`;
+    if (moveItem.game_state == "check") {
+      notation += "+";
+    } else if (moveItem.game_state == "checkmate") {
+      notation += "#";
+    }
+
+    return notation;
   }
 
   async function getAvailableSquares(index: number) {

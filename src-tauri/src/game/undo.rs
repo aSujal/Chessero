@@ -26,6 +26,7 @@ impl Board {
 
         self.castling = record.castling_rights;
         self.en_passant_pawn = record.en_passant_pawn;
+        self.game_state = record.game_state;
 
         if record.moved_piece.piece_type == PieceType::King && from_c == 4 {
             self.undo_castling(&record);

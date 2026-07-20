@@ -1,5 +1,5 @@
 use super::Board;
-use super::{Color, Move, Piece, PieceType, UndoRecord};
+use super::{Color, GameState, Move, Piece, PieceType, UndoRecord};
 
 impl Board {
     pub fn make_move(
@@ -16,6 +16,12 @@ impl Board {
         }
 
         self.make_move_unchecked(from_row, from_col, to_row, to_col);
+
+        self.update_game_state();
+
+        if let Some(last_move) = self.move_history.last_mut() {
+            last_move.game_state = self.game_state;
+        }
 
         true
     }
@@ -129,6 +135,7 @@ impl Board {
             captured_square: capture_square,
             castling_rights: self.castling,
             en_passant_pawn: self.en_passant_pawn,
+            game_state: GameState::Ongoing,
         });
     }
 
@@ -237,6 +244,20 @@ impl Board {
 
                 self.squares[from_row][3] = rook;
             }
+        }
+    }
+
+    fn update_game_state(&mut self) {
+        if self.is_in_check(self.active_color) {
+            if self.is_checkmate(self.active_color) {
+                self.game_state = GameState::Checkmate;
+            } else {
+                self.game_state = GameState::Check;
+            }
+        } else if self.is_stalemate(self.active_color) {
+            self.game_state = GameState::Stalemate;
+        } else {
+            self.game_state = GameState::Ongoing;
         }
     }
 }
