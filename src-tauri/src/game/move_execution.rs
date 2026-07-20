@@ -29,7 +29,10 @@ impl Board {
     ) {
         let moved_piece = self.squares[from_row][from_col].unwrap();
         let capture_square = self.get_capture_square(to_row, to_col, &moved_piece);
-
+        let captured_piece = match capture_square {
+            Some((row, col)) => self.squares[row][col],
+            None => None,
+        };
         self.save_undo_record(
             from_row,
             from_col,
@@ -37,6 +40,7 @@ impl Board {
             to_row,
             moved_piece,
             capture_square,
+            captured_piece,
         );
 
         self.handle_capture(capture_square);
@@ -59,6 +63,8 @@ impl Board {
         {
             self.update_castling_rights(from_col, &moved_piece);
         }
+
+        self.update_castling_after_capture(capture_square, captured_piece);
 
         self.handle_castling(from_row, from_col, to_col, &moved_piece);
 
@@ -111,12 +117,8 @@ impl Board {
         to_row: usize,
         moved_piece: Piece,
         capture_square: Option<(usize, usize)>,
+        captured_piece: Option<Piece>,
     ) {
-        let captured_piece = match capture_square {
-            Some((row, col)) => self.squares[row][col],
-            None => None,
-        };
-
         self.move_history.push(UndoRecord {
             mv: Move {
                 from: (from_row, from_col),
@@ -128,6 +130,24 @@ impl Board {
             castling_rights: self.castling,
             en_passant_pawn: self.en_passant_pawn,
         });
+    }
+
+    fn update_castling_after_capture(
+        &mut self,
+        capture_square: Option<(usize, usize)>,
+        captured_piece: Option<Piece>,
+    ) {
+        if let Some(piece) = captured_piece {
+            if piece.piece_type == PieceType::Rook {
+                match capture_square {
+                    Some((7, 0)) => self.castling.white_queenside = false,
+                    Some((7, 7)) => self.castling.white_kingside = false,
+                    Some((0, 0)) => self.castling.black_queenside = false,
+                    Some((0, 7)) => self.castling.black_kingside = false,
+                    _ => {}
+                }
+            }
+        }
     }
 
     fn handle_capture(&mut self, capture_square: Option<(usize, usize)>) {

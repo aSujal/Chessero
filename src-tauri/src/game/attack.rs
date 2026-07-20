@@ -74,7 +74,6 @@ impl Board {
                     if p.color == enemy_color && (p.piece_type == PieceType::Knight) {
                         return true;
                     }
-                    break;
                 }
             }
         }

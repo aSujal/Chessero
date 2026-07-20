@@ -130,10 +130,18 @@ impl Board {
                     Color::White
                 };
                 if self.can_castle_kingside(piece.color) {
-                    moves.push((row, 6));
+                    if let Some(rook) = self.squares[row][7] {
+                        if rook.piece_type == PieceType::Rook && rook.color == piece.color {
+                            moves.push((row, 6));
+                        }
+                    }
                 }
                 if self.can_castle_queenside(piece.color) {
-                    moves.push((row, 2));
+                    if let Some(rook) = self.squares[row][0] {
+                        if rook.piece_type == PieceType::Rook && rook.color == piece.color {
+                            moves.push((row, 2));
+                        }
+                    }
                 }
 
                 for (dr, dc) in Self::KING_DIRECTIONS {
@@ -144,9 +152,6 @@ impl Board {
                         let r = next_row as usize;
                         let c = next_col as usize;
 
-                        if self.is_square_attacked(r, c, enemy_color) {
-                            continue;
-                        }
                         //check if that square is within the range of an enemy piece and if so skip
                         match self.squares[r][c] {
                             None => moves.push((r, c)),
