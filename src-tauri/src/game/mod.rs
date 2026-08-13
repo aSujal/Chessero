@@ -4,6 +4,7 @@ pub mod move_execution;
 pub mod move_generation;
 pub mod pieces;
 pub mod types;
+pub mod uci;
 pub mod undo;
 
 pub use board::Board;

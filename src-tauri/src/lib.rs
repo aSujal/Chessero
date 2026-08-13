@@ -47,6 +47,12 @@ fn make_move(
     board
 }
 
+#[tauri::command]
+fn play_uci_sequence(mut board: Board, moves: &str) -> Result<Board, String> {
+    board.play_uci_sequence(moves)?;
+    Ok(board)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -56,7 +62,8 @@ pub fn run() {
             get_initial_board,
             get_moves,
             make_move,
-            undo_move
+            undo_move,
+            play_uci_sequence
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

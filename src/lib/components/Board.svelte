@@ -6,6 +6,7 @@
   let boardState: BoardState | null = $state(null);
   let selectedSquareIndex: number | null = $state(null);
   let availableSquares: { row: number; col: number }[] | null = $state(null);
+  let uciInput: string = $state("");
 
   onMount(async () => {
     const response: BoardState = await invoke("get_initial_board");
@@ -140,6 +141,23 @@
     selectedSquareIndex = null;
     availableSquares = null;
   }
+
+  async function handlePlayUCI() {
+    if (!boardState || !uciInput.trim()) return;
+    try {
+      const updatedBoard: BoardState = await invoke("play_uci_sequence", {
+        board: boardState,
+        moves: uciInput.trim(),
+      });
+      boardState = updatedBoard;
+      uciInput = "";
+      selectedSquareIndex = null;
+      availableSquares = null;
+    } catch (error) {
+      console.error("Invalid UCI sequence:", error);
+      alert("Invalid UCI sequence. Example: e2e4 e7e5");
+    }
+  }
 </script>
 
 <div class="game-container">
@@ -194,6 +212,15 @@
   <div class="sidebar">
     <div class="controls">
       <button onclick={() => handleUndo()}>Undo</button>
+      <div class="uci-input-group">
+        <input
+          type="text"
+          placeholder="UCI moves (e2e4 e7e5...)"
+          bind:value={uciInput}
+          onkeydown={(e) => e.key === "Enter" && handlePlayUCI()}
+        />
+        <button onclick={() => handlePlayUCI()}>Play Moves</button>
+      </div>
     </div>
     <div class="history-container">
       <h3>White - Black</h3>
