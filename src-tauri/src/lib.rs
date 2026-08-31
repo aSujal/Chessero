@@ -2,6 +2,10 @@
 
 use crate::game::board::Board;
 
+// stands for configure
+// #[cfg(test)] tells rust to only compile tests module when running "cargo test"
+#[cfg(test)]
+mod tests;
 //
 pub mod game;
 

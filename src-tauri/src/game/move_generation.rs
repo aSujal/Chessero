@@ -124,11 +124,6 @@ impl Board {
             }
 
             PieceType::King => {
-                let enemy_color = if piece.color == Color::White {
-                    Color::Black
-                } else {
-                    Color::White
-                };
                 if self.can_castle_kingside(piece.color) {
                     if let Some(rook) = self.squares[row][7] {
                         if rook.piece_type == PieceType::Rook && rook.color == piece.color {

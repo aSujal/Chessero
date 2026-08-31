@@ -10,7 +10,7 @@ pub struct CastlingRights {
     pub black_queenside: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum GameState {
     Ongoing,
