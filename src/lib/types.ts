@@ -1,5 +1,5 @@
 type PieceType = "pawn" | "bishop" | "knight" | "rook" | "queen" | "king";
-type GameState = "ongoing" | "check" | "checkmate" | "statemate" | "drawfiftymove" | "drawinsufficientmaterial" | "drawrepetition";
+type GameState = "ongoing" | "check" | "checkmate" | "stalemate" | "drawfiftymove" | "drawinsufficientmaterial" | "drawrepetition";
 type Color = "white" | "black";
 
 type Piece = {

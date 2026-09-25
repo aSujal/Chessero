@@ -1,0 +1,71 @@
+/*todo light mode*/
+
+:root {
+  --accent: #ea8c35;
+  --accent-soft: rgba(234, 140, 53, 0.16);
+  --text: #f5f5f7;
+  --text-muted: rgba(245, 245, 247, 0.55);
+  --hairline: rgba(255, 255, 255, 0.1);
+
+  --square-light: #d8dadf;
+  --square-dark: #6f7785;
+
+  color-scheme: dark;
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: linear-gradient(180deg, #17171a, #0e0e10);
+}
+
+body {
+  margin: 0;
+}
+
+/* todo: frosted glass, ported from the GlassButton in my other project */
+.glass {
+  position: relative;
+  isolation: isolate;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  border-radius: 12px;
+}
+
+/*todo: glass theme*/
+.glass-button {
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+  padding: 10px 16px;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.glass-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.glass-button:active {
+  transform: scale(0.98);
+}
+
+.glass-button.accent {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.glass-button.accent:hover {
+  background: rgba(234, 140, 53, 0.26);
+}

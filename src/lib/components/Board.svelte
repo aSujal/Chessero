@@ -7,6 +7,29 @@
   let selectedSquareIndex: number | null = $state(null);
   let availableSquares: { row: number; col: number }[] | null = $state(null);
   let uciInput: string = $state("");
+  let uciError: string = $state("");
+
+  // pieces that just moved, so they can slide into their new square
+  let slides: Move[] = $state([]);
+  let slideId: number = $state(0);
+
+  const lastRecord = $derived.by(() => {
+    const history = boardState?.move_history ?? [];
+    return history[history.length - 1];
+  });
+
+  const status = $derived.by(() => {
+    if (!boardState) return "";
+    const player = boardState.active_color === "white" ? "White" : "Black";
+    const opponent = player === "White" ? "Black" : "White";
+    const state = lastRecord?.game_state ?? "ongoing";
+
+    if (state === "checkmate") return `Checkmate`;
+    if (state === "stalemate") return "Stalemate";
+    if (state.startsWith("draw")) return "Draw";
+    if (state === "check") return `${player} is in check`;
+    return `${player} to move`;
+  });
 
   onMount(async () => {
     const response: BoardState = await invoke("get_initial_board");
@@ -81,6 +104,24 @@
     return notation;
   }
 
+  function slidePieces(from: [number, number], to: [number, number]) {
+    slides = [{ from, to }];
+
+    // castling moves the rook too
+    const piece = boardState?.squares[to[0]][to[1]];
+    if (piece?.piece_type === "king" && Math.abs(to[1] - from[1]) === 2) {
+      const row = to[0];
+      const kingside = Math.max(from[1], to[1]) === 6;
+      const corner = kingside ? 7 : 0;
+      const inner = kingside ? 5 : 3;
+      const undoing = to[1] === 4;
+
+      slides.push(undoing ? { from: [row, inner], to: [row, corner] } : { from: [row, corner], to: [row, inner] });
+    }
+
+    slideId++;
+  }
+
   async function getAvailableSquares(index: number) {
     if (!boardState) return;
     const row = getRow(index);
@@ -113,6 +154,7 @@
       });
 
       boardState = updatedBoard;
+      slidePieces([fromRow, fromCol], [clickedRow, clickedCol]);
       console.log(updatedBoard);
       selectedSquareIndex = null;
       availableSquares = null;
@@ -132,6 +174,7 @@
     if (!boardState) return;
     console.log("boardState", boardState?.move_history?.length);
     console.log("target_index", index);
+    const undone = index === undefined ? lastRecord : undefined;
     const updatedBoard: BoardState = await invoke("undo_move", {
       board: boardState,
       target_index: index,
@@ -140,6 +183,12 @@
     boardState = updatedBoard;
     selectedSquareIndex = null;
     availableSquares = null;
+
+    if (undone) {
+      slidePieces(undone.mv.to, undone.mv.from);
+    } else {
+      slides = [];
+    }
   }
 
   async function handlePlayUCI() {
@@ -151,11 +200,13 @@
       });
       boardState = updatedBoard;
       uciInput = "";
+      uciError = "";
+      slides = [];
       selectedSquareIndex = null;
       availableSquares = null;
     } catch (error) {
       console.error("Invalid UCI sequence:", error);
-      alert("Invalid UCI sequence. Example: e2e4 e7e5");
+      uciError = "Invalid UCI sequence. Example: e2e4 e7e5";
     }
   }
 </script>
@@ -166,12 +217,8 @@
       {@const row = getRow(index)}
       {@const col = getColumn(index)}
       {@const isSelected = selectedSquareIndex === index}
-      {@const lastMovedSquareFrom = boardState?.move_history?.length
-        ? boardState.move_history[boardState.move_history.length - 1].mv.from
-        : null}
-      {@const lastMovedSquareTo = boardState?.move_history?.length
-        ? boardState.move_history[boardState.move_history.length - 1].mv.to
-        : null}
+      {@const lastMovedSquareFrom = lastRecord ? lastRecord.mv.from : null}
+      {@const lastMovedSquareTo = lastRecord ? lastRecord.mv.to : null}
       {@const isLastMovedSquareFrom = lastMovedSquareFrom && lastMovedSquareFrom[0] === row && lastMovedSquareFrom[1] === col}
       {@const isLastMovedSquareTo = lastMovedSquareTo && lastMovedSquareTo[0] === row && lastMovedSquareTo[1] === col}
 
@@ -182,172 +229,102 @@
         onclick={() => handleSquareClick(index)}
         aria-label="{files[col]}{ranks[row]}"
       >
-        <!-- <span>
-        {getChessNotation(index)}
-        </span> -->
         <!-- <span class="matrix">{getMatrixCoords(index)}</span> -->
-        <!-- <span class="matrix">{index}</span> -->
         {#if availableSquares?.some((s) => s.row == row && s.col == col)}
           <div class:available-square={!piece} class:capture-target={piece && piece.color != boardState?.active_color}></div>
         {/if}
-        {#if piece}
-          {@const colorKey = piece.color === "white" ? "w" : "b"}
-          {@const pieceKey = piece.piece_type === "knight" ? "n" : piece.piece_type.charAt(0)}
-          <img src="/pieces/{colorKey}{pieceKey}.png" alt="{colorKey}{pieceKey}" class="piece-img" />
+        {#key slideId}
+          {#if piece}
+            {@const colorKey = piece.color === "white" ? "w" : "b"}
+            {@const pieceKey = piece.piece_type === "knight" ? "n" : piece.piece_type.charAt(0)}
+            {@const slide = slides.find((s) => s.to[0] === row && s.to[1] === col)}
+            <div
+              class="piece {piece.color}"
+              class:sliding={!!slide}
+              style:--img="url(/pieces/{colorKey}{pieceKey}.png)"
+              style:--dx="{slide ? (slide.from[1] - col) * 100 : 0}%"
+              style:--dy="{slide ? (slide.from[0] - row) * 100 : 0}%"
+              role="img"
+              aria-label="{piece.color} {piece.piece_type}"
+            ></div>
+          {/if}
+        {/key}
+        {#if col == 0}
+          <span id="ranks" class:coordinate-dark={isDarkSquare(index)} class:coordinate-light={!isDarkSquare(index)}>{ranks[row]}</span>
         {/if}
-        {#if getColumn(index) == 0}
-          <span id="ranks" class:coordinate-dark={isDarkSquare(index)} class:coordinate-light={!isDarkSquare(index)}
-            >{ranks[getRow(index)]}</span
-          >
-        {/if}
-        {#if getRow(index) == 7}
-          <span id="files" class:coordinate-dark={isDarkSquare(index)} class:coordinate-light={!isDarkSquare(index)}
-            >{files[getColumn(index)]}</span
-          >
+        {#if row == 7}
+          <span id="files" class:coordinate-dark={isDarkSquare(index)} class:coordinate-light={!isDarkSquare(index)}>{files[col]}</span>
         {/if}
       </button>
     {/each}
   </div>
 
-  <div class="sidebar">
+  <div class="sidebar glass">
+    <div class="sidebar-header">
+      <h3>Moves</h3>
+      <span class="status" class:alert={lastRecord?.game_state === "check" || lastRecord?.game_state === "checkmate"}>
+        {status}
+      </span>
+    </div>
+
+    <div class="history-list">
+      {#if boardState?.move_history}
+        {#each Array(Math.ceil(boardState.move_history.length / 2)) as _, i}
+          {@const latest = boardState.move_history.length - 1}
+          <div class="history-row">
+            <div class="move-number">
+              {i + 1}.
+            </div>
+            <button class="history-move" class:latest={latest === i * 2}>
+              {formatMove(boardState.move_history[i * 2])}
+            </button>
+            {#if boardState.move_history[i * 2 + 1]}
+              <button class="history-move" class:latest={latest === i * 2 + 1}>
+                {formatMove(boardState.move_history[i * 2 + 1])}
+              </button>
+            {/if}
+          </div>
+        {/each}
+      {/if}
+    </div>
+
     <div class="controls">
-      <button onclick={() => handleUndo()}>Undo</button>
       <div class="uci-input-group">
         <input
           type="text"
           placeholder="UCI moves (e2e4 e7e5...)"
           bind:value={uciInput}
+          oninput={() => (uciError = "")}
           onkeydown={(e) => e.key === "Enter" && handlePlayUCI()}
         />
-        <button onclick={() => handlePlayUCI()}>Play Moves</button>
+        <button class="glass glass-button accent" onclick={() => handlePlayUCI()}>Play</button>
       </div>
-    </div>
-    <div class="history-container">
-      <h3>White - Black</h3>
-
-      <div class="history-list">
-        {#if boardState?.move_history}
-          {#each Array(Math.ceil(boardState.move_history.length / 2)) as _, i}
-            <div class="history-row">
-              <div class="move-number">
-                {i + 1}.
-              </div>
-              <button class="history-move">
-                {formatMove(boardState.move_history[i * 2])}
-              </button>
-              {#if boardState.move_history[i * 2 + 1]}
-                <button class={`history-move`}>{formatMove(boardState.move_history[i * 2 + 1])}</button>
-              {/if}
-            </div>
-          {/each}
-        {/if}
-      </div>
+      {#if uciError}
+        <p class="error">{uciError}</p>
+      {/if}
+      <button class="glass glass-button" onclick={() => handleUndo()}>Undo</button>
     </div>
   </div>
 </div>
 
 <style>
-  * {
-    box-sizing: border-box;
-  }
-
-  :root {
-    --board-border-radius: 5px;
-  }
-
   .game-container {
+    --board-size: min(72vmin, 720px);
+
     display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 20px;
   }
 
-  .sidebar,
   .chessboard {
-    width: 75vmin;
-    height: 75vmin;
-    max-width: 800px;
-    max-height: 800px;
-  }
-
-  .chessboard {
+    width: var(--board-size);
+    height: var(--board-size);
     display: grid;
     grid-template-columns: repeat(8, 1fr);
     grid-template-rows: repeat(8, 1fr);
-  }
-
-  .sidebar {
-    background-color: #0000002e;
-    border-radius: var(--board-border-radius);
-
-    display: flex;
-    flex-direction: column;
-  }
-
-  .history-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  .history-list {
-    padding-right: 5px;
-    overflow-y: auto;
-  }
-
-  .history-row {
-    display: grid;
-    grid-template-columns: 20px 1fr 1fr;
-    align-items: center;
-    padding-inline: 20px;
-  }
-
-  .history-row:nth-child(even) {
-    background: #0000001e;
-  }
-  .history-row:nth-child(odd) {
-    background: #0000004e;
-  }
-
-  .history-move {
-    background: transparent;
-    color: white;
-    border: none;
-
-    padding: 8px;
-    text-align: left;
-  }
-
-  #files {
-    position: absolute;
-    bottom: 0;
-    right: 5px;
-  }
-
-  #ranks {
-    position: absolute;
-    top: 0;
-    left: 5px;
-  }
-
-  /* .matrix {
-    font-size: 0.7rem;
-    color: rgba(0, 0, 0, 0.45);
-  }
-  */
-
-  .piece-img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    z-index: 2;
-  }
-
-  .coordinate-light {
-    color: #739552;
-  }
-
-  .coordinate-dark {
-    color: #eeeed2;
+    border-radius: 12px;
+    overflow: hidden;
   }
 
   .square {
@@ -359,64 +336,207 @@
     border: none;
     padding: 0;
     margin: 0;
+    cursor: pointer;
   }
-  /* highlight selected square */
+
+  .light {
+    background-color: var(--square-light);
+  }
+
+  .dark {
+    background-color: var(--square-dark);
+  }
+
+  /* selected square and last move */
   .square.highlighted::before {
-    background-color: #ffff33;
-    z-index: 1;
-    opacity: 0.5;
     content: "";
-    width: 100%;
-    height: 100%;
     position: absolute;
+    inset: 0;
+    background-color: var(--accent);
+    opacity: 0.55;
   }
 
   .available-square {
-    width: 30%;
-    height: 30%;
-    background-color: black;
-    opacity: 0.2;
-    z-index: 6;
-    border-radius: 50%;
     position: absolute;
+    width: 28%;
+    height: 28%;
+    border-radius: 50%;
+    background-color: var(--accent);
+    opacity: 0.5;
+    z-index: 6;
   }
 
   .capture-target {
     border: 5px solid black;
-    opacity: 0.2;
+    opacity: 0.15;
     z-index: 6;
     border-radius: 50%;
     position: absolute;
-    top: 0px;
-    bottom: 0px;
-    right: 0px;
-    left: 0px;
+    inset: 2px;
   }
 
-  /* corners */
-  .square:first-of-type {
-    border-top-left-radius: var(--board-border-radius);
+  .piece {
+    width: 100%;
+    height: 100%;
+    background: var(--img) center / contain no-repeat;
+    mask: var(--img) center / contain no-repeat;
   }
 
-  .square:nth-child(8) {
-    border-top-right-radius: var(--board-border-radius);
+  .piece.sliding {
+    z-index: 1;
+    animation: slide 0.18s ease-out;
   }
 
-  .square:nth-child(57) {
-    border-bottom-left-radius: var(--board-border-radius);
+  @keyframes slide {
+    from {
+      transform: translate(var(--dx), var(--dy));
+    }
   }
 
-  .square:last-of-type {
-    border-bottom-right-radius: var(--board-border-radius);
+  #files,
+  #ranks {
+    position: absolute;
+    font-size: 0.7rem;
+    font-weight: 600;
   }
 
-  /* square colors */
-
-  .light {
-    background-color: #eeeed2;
+  #files {
+    bottom: 2px;
+    right: 5px;
   }
 
-  .dark {
-    background-color: #769656;
+  #ranks {
+    top: 3px;
+    left: 5px;
+  }
+
+  .coordinate-light {
+    color: var(--square-dark);
+  }
+
+  .coordinate-dark {
+    color: var(--square-light);
+  }
+
+  .sidebar {
+    width: 300px;
+    height: calc(var(--board-size));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 18px 12px;
+  }
+
+  h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+
+  .status {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    padding: 4px 10px;
+    border-radius: 25px;
+    background: rgba(255, 255, 255, 0.06);
+    white-space: nowrap;
+  }
+
+  .status.alert {
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .history-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0 10px;
+    scrollbar-width: thin;
+  }
+
+  .history-row {
+    display: grid;
+    grid-template-columns: 28px 1fr 1fr;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .history-row:nth-child(odd) {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .move-number {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
+
+  .history-move {
+    font: inherit;
+    font-size: 0.9rem;
+    color: var(--text);
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    text-align: left;
+  }
+
+  .history-move.latest {
+    color: var(--accent);
+    background: var(--accent-soft);
+    font-weight: 600;
+  }
+
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border-top: 1px solid var(--hairline);
+  }
+
+  .uci-input-group {
+    display: flex;
+    gap: 8px;
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 0.875rem;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+    padding: 9px 12px;
+    outline: none;
+    transition:
+      border-color 0.2s,
+      box-shadow 0.2s;
+  }
+
+  input::placeholder {
+    color: var(--text-muted);
+  }
+
+  input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  .error {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #ff6b5e;
   }
 </style>
