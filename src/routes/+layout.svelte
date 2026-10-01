@@ -4,7 +4,7 @@
 
   let { children } = $props();
 
-  const links = [{ href: "/", label: "Home" }];
+  const links = [{ href: "/", label: "Play" }];
 </script>
 
 <svelte:head>
@@ -26,10 +26,15 @@
 <style>
   .topbar {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between;
-    margin: 16px 20px 0;
-    padding: 8px 8px 8px 18px;
+    gap: 10px;
+    padding-inline: 10px;
+    padding-block: 10px;
+    border-top-left-radius: 0px;
+    border-bottom-left-radius: 0px;
+    height: 100vh;
+    min-width: 100px;
   }
 
   .logo {

@@ -29,6 +29,10 @@ body {
   margin: 0;
 }
 
+.main {
+  display: flex;
+}
+
 /* todo: frosted glass, ported from the GlassButton in my other project */
 .glass {
   position: relative;
