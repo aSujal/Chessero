@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { get } from "svelte/store";
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
 
@@ -9,9 +8,12 @@
   let uciInput: string = $state("");
   let uciError: string = $state("");
 
-  // pieces that just moved, so they can slide into their new square
+  //array so castling can be animated too
   let slides: Move[] = $state([]);
   let slideId: number = $state(0);
+
+  let boardEl: HTMLDivElement | undefined = $state();
+  let dragging: { from: number; x: number; y: number } | null = $state(null);
 
   const lastRecord = $derived.by(() => {
     const history = boardState?.move_history ?? [];
@@ -21,7 +23,6 @@
   const status = $derived.by(() => {
     if (!boardState) return "";
     const player = boardState.active_color === "white" ? "White" : "Black";
-    const opponent = player === "White" ? "Black" : "White";
     const state = lastRecord?.game_state ?? "ongoing";
 
     if (state === "checkmate") return `Checkmate`;
@@ -32,9 +33,7 @@
   });
 
   onMount(async () => {
-    const response: BoardState = await invoke("get_initial_board");
-    console.log(response);
-    boardState = response;
+    boardState = await invoke("get_initial_board");
   });
 
   const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
@@ -47,12 +46,6 @@
     const row = getRow(index);
     const col = getColumn(index);
     return (row + col) % 2 == 1;
-  }
-
-  function getMatrixCoords(index: number): string {
-    const row = Math.floor(index / 8);
-    const col = index % 8;
-    return `[${row}][${col}]`;
   }
 
   function coordsToNotation(row: number, col: number): string {
@@ -122,6 +115,38 @@
     slideId++;
   }
 
+  function handlePointerDown(e: PointerEvent, index: number) {
+    if (e.button !== 0) return;
+    const piece = boardState?.squares[getRow(index)][getColumn(index)];
+    if (!piece || piece.color !== boardState?.active_color) return;
+
+    selectedSquareIndex = index;
+    getAvailableSquares(index);
+    dragging = { from: index, x: e.clientX, y: e.clientY };
+  }
+
+  function handlePointerMove(e: PointerEvent) {
+    if (!dragging) return;
+    dragging.x = e.clientX;
+    dragging.y = e.clientY;
+  }
+
+  function handlePointerUp(e: PointerEvent) {
+    if (!dragging || !boardEl) return;
+
+    const rect = boardEl.getBoundingClientRect();
+    const squareSize = rect.width / 8;
+    const col = Math.floor((e.clientX - rect.left) / squareSize);
+    const row = Math.floor((e.clientY - rect.top) / squareSize);
+
+    if (row >= 0 && row < 8 && col >= 0 && col < 8) {
+      const targetIndex = row * 8 + col;
+      tryMove(dragging.from, targetIndex);
+    }
+
+    dragging = null;
+  }
+
   async function getAvailableSquares(index: number) {
     if (!boardState) return;
     const row = getRow(index);
@@ -140,25 +165,13 @@
     const clickedCol = getColumn(index);
     const clickedPiece = boardState?.squares[clickedRow][clickedCol];
 
-    //Handle move
-    if (selectedSquareIndex !== null && availableSquares?.some((s) => s.row === clickedRow && s.col === clickedCol)) {
+    if (selectedSquareIndex !== null) {
       const fromRow = getRow(selectedSquareIndex);
       const fromCol = getColumn(selectedSquareIndex);
-
-      const updatedBoard: BoardState = await invoke("make_move", {
-        board: boardState,
-        fromRow: fromRow,
-        fromCol: fromCol,
-        toRow: clickedRow,
-        toCol: clickedCol,
-      });
-
-      boardState = updatedBoard;
-      slidePieces([fromRow, fromCol], [clickedRow, clickedCol]);
-      console.log(updatedBoard);
-      selectedSquareIndex = null;
-      availableSquares = null;
-      return;
+      if (await tryMove(selectedSquareIndex, index)) {
+        slidePieces([fromRow, fromCol], [clickedRow, clickedCol]);
+        return;
+      }
     }
 
     if (clickedPiece) {
@@ -170,10 +183,33 @@
     }
   }
 
+  async function tryMove(fromIndex: number, toIndex: number): Promise<boolean> {
+    const fromRow = getRow(fromIndex);
+    const fromCol = getColumn(fromIndex);
+    const toRow = getRow(toIndex);
+    const toCol = getColumn(toIndex);
+
+    if (availableSquares?.some((s) => s.row === toRow && s.col === toCol)) {
+      const updatedBoard: BoardState = await invoke("make_move", {
+        board: boardState,
+        fromRow: fromRow,
+        fromCol: fromCol,
+        toRow: toRow,
+        toCol: toCol,
+      });
+
+      slides = [];
+      boardState = updatedBoard;
+      selectedSquareIndex = null;
+      availableSquares = null;
+
+      return true;
+    }
+    return false;
+  }
+
   async function handleUndo(index?: number) {
     if (!boardState) return;
-    console.log("boardState", boardState?.move_history?.length);
-    console.log("target_index", index);
     const undone = index === undefined ? lastRecord : undefined;
     const updatedBoard: BoardState = await invoke("undo_move", {
       board: boardState,
@@ -211,8 +247,9 @@
   }
 </script>
 
-<div class="game-container">
-  <div class="chessboard">
+<svelte:window onpointermove={handlePointerMove} onpointerup={handlePointerUp} onpointercancel={() => (dragging = null)} />
+<div class="game-container" class:dragging>
+  <div class="chessboard" bind:this={boardEl}>
     {#each squares as index}
       {@const row = getRow(index)}
       {@const col = getColumn(index)}
@@ -227,9 +264,9 @@
         class="square {isDarkSquare(index) ? 'dark' : 'light'}"
         class:highlighted={isSelected || isLastMovedSquareFrom || isLastMovedSquareTo}
         onclick={() => handleSquareClick(index)}
+        onpointerdown={(e) => handlePointerDown(e, index)}
         aria-label="{files[col]}{ranks[row]}"
       >
-        <!-- <span class="matrix">{getMatrixCoords(index)}</span> -->
         {#if availableSquares?.some((s) => s.row == row && s.col == col)}
           <div class:available-square={!piece} class:capture-target={piece && piece.color != boardState?.active_color}></div>
         {/if}
@@ -238,22 +275,30 @@
             {@const colorKey = piece.color === "white" ? "w" : "b"}
             {@const pieceKey = piece.piece_type === "knight" ? "n" : piece.piece_type.charAt(0)}
             {@const slide = slides.find((s) => s.to[0] === row && s.to[1] === col)}
+            {@const drag = dragging?.from === index ? dragging : null}
             <div
               class="piece {piece.color}"
               class:sliding={!!slide}
+              class:dragged={!!drag}
               style:--img="url(/pieces/{colorKey}{pieceKey}.png)"
               style:--dx="{slide ? (slide.from[1] - col) * 100 : 0}%"
               style:--dy="{slide ? (slide.from[0] - row) * 100 : 0}%"
+              style:left={drag ? `${drag.x}px` : null}
+              style:top={drag ? `${drag.y}px` : null}
               role="img"
               aria-label="{piece.color} {piece.piece_type}"
             ></div>
           {/if}
         {/key}
         {#if col == 0}
-          <span id="ranks" class:coordinate-dark={isDarkSquare(index)} class:coordinate-light={!isDarkSquare(index)}>{ranks[row]}</span>
+          <span class="rank-label" class:coordinate-dark={isDarkSquare(index)} class:coordinate-light={!isDarkSquare(index)}
+            >{ranks[row]}</span
+          >
         {/if}
         {#if row == 7}
-          <span id="files" class:coordinate-dark={isDarkSquare(index)} class:coordinate-light={!isDarkSquare(index)}>{files[col]}</span>
+          <span class="file-label" class:coordinate-dark={isDarkSquare(index)} class:coordinate-light={!isDarkSquare(index)}
+            >{files[col]}</span
+          >
         {/if}
       </button>
     {/each}
@@ -324,6 +369,7 @@
     grid-template-columns: repeat(8, 1fr);
     grid-template-rows: repeat(8, 1fr);
     border-radius: 12px;
+    touch-action: none;
     overflow: hidden;
   }
 
@@ -336,7 +382,15 @@
     border: none;
     padding: 0;
     margin: 0;
-    cursor: pointer;
+  }
+
+  .square:has(.piece) {
+    cursor: grab;
+  }
+
+  .dragging,
+  .dragging .square {
+    cursor: grabbing;
   }
 
   .light {
@@ -352,7 +406,7 @@
     content: "";
     position: absolute;
     inset: 0;
-    background-color: var(--accent);
+    background-color: var(--highlight-move);
     opacity: 0.55;
   }
 
@@ -360,17 +414,17 @@
     position: absolute;
     width: 28%;
     height: 28%;
-    border-radius: 50%;
-    background-color: var(--accent);
+    border-radius: 25%;
+    background-color: var(--capture-target);
     opacity: 0.5;
     z-index: 6;
   }
 
   .capture-target {
-    border: 5px solid black;
-    opacity: 0.15;
+    border: 5px solid var(--capture-target);
+    opacity: 0.25;
     z-index: 6;
-    border-radius: 50%;
+    border-radius: 25%;
     position: absolute;
     inset: 2px;
   }
@@ -380,6 +434,15 @@
     height: 100%;
     background: var(--img) center / contain no-repeat;
     mask: var(--img) center / contain no-repeat;
+  }
+
+  .piece.dragged {
+    position: fixed;
+    width: calc(var(--board-size) / 8);
+    height: calc(var(--board-size) / 8);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 100;
   }
 
   .piece.sliding {
@@ -393,19 +456,19 @@
     }
   }
 
-  #files,
-  #ranks {
+  .file-label,
+  .rank-label {
     position: absolute;
     font-size: 0.7rem;
     font-weight: 600;
   }
 
-  #files {
+  .file-label {
     bottom: 2px;
     right: 5px;
   }
 
-  #ranks {
+  .rank-label {
     top: 3px;
     left: 5px;
   }

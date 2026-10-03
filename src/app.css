@@ -7,8 +7,11 @@
   --text-muted: rgba(245, 245, 247, 0.55);
   --hairline: rgba(255, 255, 255, 0.1);
 
-  --square-light: #d8dadf;
-  --square-dark: #6f7785;
+  --square-light: #edd7c8;
+  --square-dark: #c98d64;
+
+  --capture-target: #83594d;
+  --highlight-move: #d9bb84;
 
   color-scheme: dark;
   color: var(--text);

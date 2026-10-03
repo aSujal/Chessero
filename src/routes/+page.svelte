@@ -9,7 +9,9 @@
 <style>
   .container {
     display: flex;
+    flex: 1;
     justify-content: center;
+    align-items: center;
     padding: 10px;
   }
 </style>
